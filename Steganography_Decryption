@@ -1,0 +1,42 @@
+#This code is used to decrypt the data that is encrypted in a image
+import cv2
+from cryptography.fernet import Fernet
+
+# Helper function to extract hidden data from the stego image
+def extract_data(stego_image, data_length):
+    # Flatten image and convert to binary string
+    binary_data = ""
+    for row in stego_image:
+        for pixel in row:
+            r, g, b = pixel
+            binary_data += format(r, '08b')[-1]
+            binary_data += format(g, '08b')[-1]
+            binary_data += format(b, '08b')[-1]
+
+    # Convert binary data to characters
+    all_bytes = [binary_data[i:i+8] for i in range(0, len(binary_data), 8)]
+    extracted_data = "".join([chr(int(byte, 2)) for byte in all_bytes])
+
+    # Return the extracted encrypted message (limit to the data length)
+    return extracted_data[:data_length]
+
+# Function to decrypt the hidden message
+def decrypt_message(encrypted_message, key):
+    fernet = Fernet(key)
+    decrypted_message = fernet.decrypt(encrypted_message)
+    return decrypted_message.decode()
+
+# Load the stego image that contains the hidden message
+stego_image_path = "/content/drive/My Drive/stego_image.png"  # Provide the correct path
+stego_image = cv2.imread(stego_image_path)
+
+# Extract the hidden encrypted data
+# (Assuming you know the length of the original encrypted message)
+data_length = 172  # Example length of the encrypted message (adjust based on actual)
+extracted_encrypted_data = extract_data(stego_image, data_length)
+print(f"Extracted Encrypted Data: {extracted_encrypted_data}")
+
+# Decrypt the extracted encrypted data (provide the key you shared)
+key = b'X3hSKjX3IH-bnIuFCygl8Bi_a-iq715oMdCvF7e42jo='  # Provide the correct encryption key
+decrypted_message = decrypt_message(extracted_encrypted_data.encode('utf-8'), key)
+print(f"Decrypted Message: {decrypted_message}")
