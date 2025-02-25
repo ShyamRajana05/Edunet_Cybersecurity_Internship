@@ -1,0 +1,118 @@
+# Step 1: Mount Google Drive to Google Colab if you want to use your drive to save the encrypted image
+#This is code is used to encrypt the data in an image
+from google.colab import drive
+
+# Mount Google Drive
+drive.mount('/content/drive')
+
+# Step 2: Install necessary libraries
+!pip install opencv-python-headless cryptography numpy
+
+# Step 3: Import necessary libraries
+import cv2
+import numpy as np
+from cryptography.fernet import Fernet
+
+# Step 4: Helper functions for encryption and decryption
+def generate_key():
+    """
+    Generates a key for encryption/decryption
+    """
+    return Fernet.generate_key()
+
+def encrypt_message(message, key):
+    """
+    Encrypts the message using AES encryption with the provided key.
+    """
+    cipher_suite = Fernet(key)
+    return cipher_suite.encrypt(message.encode())
+
+def decrypt_message(encrypted_message, key):
+    """
+    Decrypts the encrypted message using the provided key.
+    """
+    cipher_suite = Fernet(key)
+    return cipher_suite.decrypt(encrypted_message).decode()
+
+# Step 5: Function to embed data into the image
+def embed_data(image, secret_data):
+    """
+    Embeds encrypted data into an image using LSB (Least Significant Bit) technique.
+    """
+    # Convert secret data to binary
+    binary_secret_data = ''.join([format(ord(i), "08b") for i in secret_data])
+
+    data_index = 0
+    binary_data_len = len(binary_secret_data)
+
+    # Get image dimensions
+    h, w, _ = image.shape
+
+    # Iterate over image pixels to hide data in the least significant bits
+    for i in range(h):
+        for j in range(w):
+            if data_index < binary_data_len:
+                # Modify the last bit of each RGB channel
+                pixel = list(image[i, j])
+                for k in range(3):  # Loop through the RGB channels
+                    if data_index < binary_data_len:
+                        pixel[k] = int(bin(pixel[k])[2:-1] + binary_secret_data[data_index], 2)
+                        data_index += 1
+                image[i, j] = tuple(pixel)
+            else:
+                break
+
+    return image
+
+# Step 6: Function to extract data from the image
+def extract_data(image, data_length):
+    """
+    Extracts hidden data from the image using LSB technique.
+    """
+    binary_data = ""
+    h, w, _ = image.shape
+
+    for i in range(h):
+        for j in range(w):
+            pixel = image[i, j]
+            for k in range(3):  # Loop through the RGB channels
+                binary_data += bin(pixel[k])[-1]
+                if len(binary_data) >= data_length * 8:  # Stop when we've extracted enough bits
+                    break
+
+    # Convert binary data to characters
+    extracted_data = ''.join([chr(int(binary_data[i:i+8], 2)) for i in range(0, len(binary_data), 8)])
+    return extracted_data
+# Step 7: Main execution
+if __name__ == "__main__":
+    # Load the image from Google Drive
+    image_path = "/content/drive/MyDrive/ron.jpg"
+    image = cv2.imread(image_path)
+
+    # Secret message to hide
+    secret_message = "Confidential Data"
+
+    # Generate encryption key
+    key = generate_key()
+    print(f"Encryption Key: {key}")
+
+    # Encrypt the message
+    encrypted_message = encrypt_message(secret_message, key)
+    print(f"Encrypted Message: {encrypted_message}")
+
+    # Embed the encrypted message into the image
+    stego_image = embed_data(image, encrypted_message.decode('utf-8'))
+
+    # Save the stego image to Google Drive
+    stego_image_path = "/content/drive/My Drive/stego_image.png"
+    cv2.imwrite(stego_image_path, stego_image)
+    print(f"Stego image saved at {stego_image_path}")
+
+    # To extract data:
+    # Extract the hidden data (encrypted)
+    extracted_encrypted_data = extract_data(stego_image, len(encrypted_message))
+    print(f"Extracted Encrypted Data: {extracted_encrypted_data}")
+
+    # Decrypt the extracted data
+    decrypted_message = decrypt_message(extracted_encrypted_data.encode('utf-8'), key)
+    print(f"Decrypted Message: {decrypted_message}")
